@@ -1,6 +1,6 @@
+# Developed By abdrzakk-jpg
 
-import sys, json, requests
-
+import sys, json, requests, os 
 from PySide6.QtCore import QThread, Qt, Signal
 from PySide6.QtGui import QFont, QFontDatabase
 from PySide6.QtWidgets import (
@@ -13,10 +13,12 @@ from PySide6.QtWidgets import (
     QPushButton,
     QTextEdit,
     QVBoxLayout,
+    QLayout,
     QWidget,
+    QMessageBox
 )
 
-# Thread Worker to avoid app crash
+# *Thread Worker to avoid app crash
 class Worker(QThread):
     # prepare signal to emit response 
     response = Signal(tuple)
@@ -33,22 +35,64 @@ class Worker(QThread):
             ayah_req = requests.get(f"http://api.quran-tafseer.com/quran/{self.surah_id}/{self.aya_number}/")
             data = (tefseer_req.json()["text"], ayah_req.json()["text"])
             self.response.emit(data)
-        except Exception as e:
-            data = (f"Error: {str(e)}", "نعتذر عن وجود خطأ في تفسير الآية، يرجى التأكد من توفر اتصال بالشبكة")
+        except Exception :
+            data = ("يرجى التأكد من الاتصال بالشبكة", "نعتذر عن وجود خطأ في تفسير الآية، يرجى التأكد من توفر اتصال بالشبكة")
         self.response.emit(data)
         
         
-# main app(GUI) class
+# *main app(GUI) class
 class QuranInterpreterUI(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("مفسر القرآن الكريم")
         self.setFixedSize(900, 650)
         
+        
+        # get file path by part of the given path
+        self.get_path = lambda file: os.path.join(os.path.abspath((os.path.dirname(__file__))), file)
+        
+        
+        
+        self.PALETTE = {
+            "base": "#0F172A",
+            "surface": "#1E293B",
+            "overlay": "#334155",
+            "accent": "#818CF8",
+            "text": "#F8FAFC",
+            "subtext": "#94A3B8"
+        }
+        self.setStyleSheet(f"""
+            QPushButton {{
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                    stop:0 {self.PALETTE["accent"]}, stop:1 #6366F1);
+                color: {self.PALETTE["text"]};
+                border-radius: 8px;
+                padding: 10px 25px;
+                font-size: 16px;
+            }}
+            QPushButton:hover {{
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                    stop:0 {self.PALETTE["accent"]}, stop:1 #4F46E5);
+            }}
+        """)
+
         # Create main central widget
         central = QWidget()
-        secondary_font_id = QFontDatabase.addApplicationFont('./assets/NotoKufiArabic.ttf')
-        self.secondary_font = QFontDatabase.applicationFontFamilies(secondary_font_id)[0]
+        central.setStyleSheet(f"""
+            #centralWidget {{
+                background: {self.PALETTE["base"]};
+                border-radius: 20px;
+                border: 1px solid rgba(255, 255, 255, 0.1);
+            }}
+        """)
+        font_file_path = self.get_path('./assets/NotoKufiArabic.ttf')
+        self.default_font = "Arial"
+        if not os.path.exists(font_file_path):
+            self.send_err_message('خطأ', "تعذر تحميل ملف الخط 'NotoKufiArabic' يرجى اعادة تحميل البرنامج لحل المشكلة")
+        else:
+            default_font_id = QFontDatabase.addApplicationFont(font_file_path)
+            # *change the default_font to "NotoKufiArabic"
+            self.default_font = QFontDatabase.applicationFontFamilies(default_font_id)[0]
 
         central.setObjectName("centralWidget")
         main_layout = QVBoxLayout(central)
@@ -74,14 +118,20 @@ class QuranInterpreterUI(QMainWindow):
         title_layout.setContentsMargins(0, 0, 0, 0)
         
         # Title
-        title = QLabel("مفسر القرآن")
-        title.setObjectName("titleLabel")
+        title = QLabel("مُفَسِّرُ القُرْآنِ")
         title.setAlignment(Qt.AlignCenter)
-        title_font = QFont()    
-        title_font.setFamily(self.secondary_font)
-        title_font.setPointSize(24)
+        title_font = QFont()
+        title_font.setFamily(self.default_font)
+        title_font.setPointSize(28)
         title_font.setBold(True)
         title.setFont(title_font)
+        title.setStyleSheet(f"""
+            color: {self.PALETTE["accent"]};
+            background: rgba(30, 41, 59, 0.7);
+            border-radius: 15px;
+            padding: 15px 0;
+            border: 1px solid rgba(129, 140, 248, 0.2);
+        """)
         title_layout.addWidget(title)
         
         main_layout.addWidget(title_container)
@@ -89,6 +139,9 @@ class QuranInterpreterUI(QMainWindow):
         # Controls row
         controls = QHBoxLayout()
         controls.setSpacing(15)
+        
+        
+
         
         # Surah combobox
         surah_container = QWidget()
@@ -102,7 +155,6 @@ class QuranInterpreterUI(QMainWindow):
         
         # Surah comboBox
         self.cb_surah = QComboBox()
-        self.cb_surah.addItems(["سورة: "+surah for surah in self.load_depends()["all_surah_names"]])
         self.cb_surah.currentTextChanged.connect(self.set_current_surah)
         self.cb_surah.setFixedHeight(40)
         surah_layout.addWidget(self.cb_surah)
@@ -125,9 +177,8 @@ class QuranInterpreterUI(QMainWindow):
         from_label.setObjectName("sectionLabel")
         from_layout.addWidget(from_label)
         
-        # Ayah comboBox
+        # Ayat comboBox
         self.cb_aya = QComboBox()
-        self.cb_aya.addItems([str(aya+1) for aya in range(self.get_surah_info(self.current_surah)["numberOfAyat"])])
         self.cb_aya.setFixedHeight(40)
         from_layout.addWidget(self.cb_aya)
         
@@ -153,6 +204,7 @@ class QuranInterpreterUI(QMainWindow):
         # Interpret button
         self.btn = QPushButton("فسر")
         self.btn.setEnabled(True)
+        self.btn.setFont(QFont(self.default_font))
         self.btn.setFixedHeight(40)
         self.btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn.clicked.connect(self.start_proccess)
@@ -166,6 +218,14 @@ class QuranInterpreterUI(QMainWindow):
         frame_layout = QVBoxLayout(frame)
         frame_layout.setContentsMargins(20, 20, 20, 20)
         frame_layout.setSpacing(15)
+        frame.setStyleSheet(f"""
+            #contentFrame {{
+                background: rgba(30, 41, 59, 0.5);
+                border-radius: 20px;
+                border: 1px solid rgba(255, 255, 255, 0.1);
+                
+            }}
+        """)
         
         # Verse label with decorative background
         verse_container = QFrame()
@@ -178,7 +238,7 @@ class QuranInterpreterUI(QMainWindow):
         self.lbl_verse.setAlignment(Qt.AlignCenter)
         self.lbl_verse.setWordWrap(True)
         verse_font = QFont()
-        verse_font.setFamily(self.secondary_font)
+        verse_font.setFamily(self.default_font)
         verse_font.setPointSize(18)
         self.lbl_verse.setFont(verse_font)
         verse_layout.addWidget(self.lbl_verse)
@@ -193,8 +253,16 @@ class QuranInterpreterUI(QMainWindow):
         self.txt_tafseer.setObjectName("tafseerText")
         self.txt_tafseer.setReadOnly(True)
         self.txt_tafseer.setPlaceholderText("التفسير سيظهر هنا ...")
+        self.txt_tafseer.setStyleSheet(f"""
+            #tafseerText {{
+                background: rgba(30, 41, 59, 0.7);
+                color: {self.PALETTE["text"]};
+                border-radius: 12px;
+                border: 1px solid {self.PALETTE["overlay"]};
+            }}
+        """)
         tafseer_font = QFont()
-        tafseer_font.setFamily(self.secondary_font)
+        tafseer_font.setFamily(self.default_font)
         tafseer_font.setPointSize(14)
         
         self.txt_tafseer.setFont(tafseer_font)
@@ -204,32 +272,31 @@ class QuranInterpreterUI(QMainWindow):
         
         # Footer
         footer = QLabel("ادعوا لأمي بالشفاء | Pray for my mother to heal")
-        footer.setFont(QFont(self.secondary_font, 15, 700))
+        footer.setFont(QFont(self.default_font, 15, 700))
         footer.setAlignment(Qt.AlignCenter)
         main_layout.addWidget(footer)
+        footer.setStyleSheet(f"color: {self.PALETTE['subtext']};")
+
         
         # Apply global styles with Arabic font
         combo_style = f"""
             QComboBox {{
-                background-color: rgba(255, 255, 255, 0.1);
-                border: 1px solid #3a6186;
+                background: {self.PALETTE["surface"]};
+                border: 1px solid {self.PALETTE["overlay"]};
+                color: {self.PALETTE["text"]};
                 border-radius: 8px;
-                padding: 5px 15px;
-                color: white;
+                padding: 8px 16px;
                 font-size: 14px;
-                font-family: '{self.secondary_font}';
             }}
             QComboBox::drop-down {{
                 border: none;
-                width: 30px;
+                width: 40px;
             }}
             QComboBox QAbstractItemView {{
-                background-color: #0c2a4a;
-                color: white;
-                selection-background-color: #3a6186;
-                border: 1px solid #3a6186;
-                border-radius: 5px;
-                font-family: '{self.secondary_font}';
+                background: {self.PALETTE["surface"]};
+                color: {self.PALETTE["text"]};
+                border: 1px solid {self.PALETTE["overlay"]};
+                border-radius: 8px;
             }}
         """
         
@@ -239,68 +306,86 @@ class QuranInterpreterUI(QMainWindow):
         
         self.setStyleSheet(f"""
             #centralWidget {{
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:1, 
-                    stop:0 #0a1929, stop:1 #0c2a4a);
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                    stop:0 #1A1B26, stop:1 #16161E);
                 border-radius: 15px;
             }}
             #titleContainer {{
-                background-color: rgba(12, 42, 74, 0.7);
+                background-color: rgba(26, 27, 38, 0.9);
                 border-radius: 15px;
-                border: 1px solid #3a6186;
+                border: 1px solid #3B3D5B;
             }}
             #contentFrame {{
-                background-color: rgba(10, 25, 41, 0.7);
+                background-color: rgba(26, 27, 38, 0.8);
                 border-radius: 15px;
-                border: 1px solid #3a6186;
+                border: 1px solid #3B3D5B;
             }}
             #verseContainer {{
-                background-color: #0c2a4a;
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                    stop:0 rgba(72, 52, 106, 0.4), stop:1 rgba(42, 62, 114, 0.4));
                 border-radius: 10px;
-                border: 1px solid #3a6186;
+                border: 1px solid #3B3D5B;
             }}
             #tafseerText {{
-                background-color: rgba(12, 42, 74, 0.8);
+                background-color: rgba(26, 27, 38, 0.9);
                 border-radius: 10px;
-                border: 1px solid #3a6186;
-                color: #e6e6e6;
-                padding: 15px;
-                font-size: 15px;
-                font-family: '{self.secondary_font}';
+                border: 1px solid #3B3D5B;
+                color: #A9B1D6;
+                padding: 20px;
+                font-size: 14px;
+                line-height: 1.6;
             }}
             QLabel#titleLabel {{
-                color: #c9a96e;
-                padding: 5px 0;
-                font-family: '{self.secondary_font}';
+                color: #BB9AF7;
+                padding: 8px 0;
+                font-size: 26px;
+                letter-spacing: 1px;
             }}
             QLabel#sectionLabel {{
-                color: #c9a96e;
-                font-size: 14px;
-                font-weight: bold;
-                font-family: '{self.secondary_font}';
+                color: #7AA2F7;
+                font-size: 15px;
+                font-weight: 600;
             }}
             QLabel#verseLabel {{
-                color: #ffffff;
-                font-size: 18px;
-                font-family: '{self.secondary_font}';
+                color: whitesmoke;
+                font-size: 20px;
+                line-height: 1.8;
             }}
             QPushButton {{
-                background-color: #c9a96e;
+                background-color: #BB9AF7;
                 border-radius: 10px;
-                color: #0a1929;
-                border: none;
-                padding: 5px 15px;
-                font-weight: bold;
+                color: #1A1B26;
+                padding: 8px 20px;
                 font-size: 16px;
-                font-family: '{self.secondary_font}';
+                font-weight: 600;
+                min-width: 100px;
             }}
             QPushButton:hover {{
-                background-color: #d8b97c;
+                background-color: #7AA2F7;
             }}
             QPushButton:pressed {{
-                background-color: #ba984d;
+                background-color: #6272A4;
+            }}
+            QComboBox {{
+                background-color: rgba(59, 61, 91, 0.4);
+                border: 1px solid #3B3D5B;
+                color: #A9B1D6;
+                border-radius: 8px;
+                padding: 8px 16px;
+                font-size: 14px;
+                min-width: 120px;
+            }}
+            QComboBox QAbstractItemView {{
+                background-color: #24283B;
+                border: 1px solid #3B3D5B;
+                color: #A9B1D6;
+                selection-background-color: #7AA2F7;
+            }}
+            QComboBox QAbstractItemView:hover {{
+                background-color: #15396B;
             }}
             QLabel {{
-                font-family: '{self.secondary_font}';
+                color: #565F89;
             }}
         """)
         
@@ -308,23 +393,41 @@ class QuranInterpreterUI(QMainWindow):
         
         self.setCentralWidget(central)
         
-    # load data from /data/dependencies.json
-    def load_depends(self) -> dict:  # TODO: Edit The Name 
-        with open("./assets/dependencies.json", "r") as file:
-            all_surah = json.load(file)
-        return {
-            "all_surah_names":all_surah,
-            
-        }
+        self.set_combo_box_content()
         
+    
+    
+    
+    def set_combo_box_content(self):
+        if self.load_suar_file() is None:
+            self.send_err_message("خطأ", "تعذر تحميل ملف معلومات الصور, يرجى اعادة تثبيت البرنامج لحل المشكلة")
+            exit(404)
+        else:
+            self.cb_aya.addItems([str(aya+1) for aya in range(self.get_surah_info(self.current_surah)["numberOfAyat"])])
+            self.cb_surah.addItems(["سورة: "+surah for surah in self.get_all_suar()])
+        
+        
+    # load data from /data/suar.json
+    def load_suar_file(self)-> dict | None:
+        file_path = self.get_path("assets/suar.json")
+        if os.path.exists(file_path):
+            
+            with open(file_path, "r") as json_file:
+                return json.load(json_file)
+        else:
+            return None
+        
+    def get_all_suar(self):
+        return self.load_suar_file()
+    
+    
     # get surah_info via surah name
     def get_surah_info(self, surah_name: str) ->  dict:
-        with open("./assets/dependencies.json", "r") as file:
-            all_surah = json.load(file)
-        return all_surah[surah_name]
+        all_suar = self.load_suar_file()
+        return all_suar[surah_name]
         
     # set the current surah and update ayat number field
-    def set_current_surah(self, value: str):
+    def set_current_surah(self, value: str)-> None:
         self.current_surah = value.split("سورة:")[-1].strip()    
         # update ayat comboBox
         self.cb_aya.clear()
@@ -332,7 +435,7 @@ class QuranInterpreterUI(QMainWindow):
         
         
     # send data to API to get the Tafseer
-    def start_proccess(self, ):
+    def start_proccess(self, )-> None:
         # disbale button until get the data from API
         self.btn.setText("󰂭")
         self.btn.setCursor(Qt.CursorShape.BusyCursor)
@@ -356,7 +459,7 @@ class QuranInterpreterUI(QMainWindow):
         
 
         
-    def update_gui(self, value):
+    def update_gui(self, value)-> None:
         # update GUI elements 
         self.txt_tafseer.setText(f"{value[0]}")
         self.lbl_verse.setText(value[1])
@@ -364,6 +467,38 @@ class QuranInterpreterUI(QMainWindow):
         # reset btn to default state
         self.btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn.setEnabled(True)
+        
+        
+    def send_err_message(self, title:str, text:str)-> None:
+        msgbox = QMessageBox()
+        msgbox.setIcon(QMessageBox.Icon.Critical)
+        msgbox.layout().setSizeConstraint(QLayout.SizeConstraint.SetFixedSize)
+        
+        msgbox.setText(text)
+        msgbox.setStyleSheet(f"""
+                            QPushButton {{
+                                background-color: #BB9AF7;
+                                border:none;
+                                color: #1A1B26;
+                                padding:3px 6px;
+                                font-weight: 600;
+                                font-family:{self.default_font}
+                            }}
+                            QLabel{{
+                                font-family:{self.default_font};
+                                min-width: 300px; 
+                            }}
+                            QPushButton:hover {{
+                                background-color: #7AA2F7;
+                            }}
+                             """)
+        msgbox.addButton("حسنا", QMessageBox.ButtonRole.AcceptRole)
+
+        msgbox.setStandardButtons(QMessageBox.StandardButton.NoButton)
+        msgbox.setWindowTitle(title)
+
+        msgbox.exec()
+        
     
     
 if __name__ == "__main__":
@@ -371,5 +506,3 @@ if __name__ == "__main__":
     window = QuranInterpreterUI()
     window.show()
     sys.exit(app.exec())
-
-
