@@ -46,6 +46,19 @@
 
 ---
 
+<div align="center">
+  
+  ## صور من البرنامج
+![screenshot1](https://github.com/user-attachments/assets/0d7589b3-58c7-46ff-9d0a-a5ddf3923fe0)
+![screenshot2](https://github.com/user-attachments/assets/9cc71b03-aa73-4863-9dfb-3763a610b8c2)
+![screenshot3](https://github.com/user-attachments/assets/045c7fd7-68da-408b-8e9f-8067f23db1da)
+
+
+  
+</div>
+
+
+---
 ## 📦 التثبيت والتشغيل
 
 <div align="center">
